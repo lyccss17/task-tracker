@@ -49,155 +49,212 @@ document.addEventListener('DOMContentLoaded', function() {
 // ============================================
 // GOOGLE SHEETS API FUNCTIONS
 // ============================================
+// In loadTasksFromGoogleSheets() - REPLACE the sample data with:
 function loadTasksFromGoogleSheets() {
-    // For demo, use sample data
-    // Replace with actual API call:
-    // fetch(API_URL + '?action=getTasks')
-    //     .then(res => res.json())
-    //     .then(data => {
-    //         tasks = data;
-    //         updateDashboard();
-    //         renderTasks();
-    //     });
-    
-    // Sample data for demo
-    tasks = getSampleTasks();
-    updateDashboard();
-    renderTasks();
+    fetch(API_URL + '?action=getTasks')
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                tasks = data.data;
+                updateDashboard();
+                renderTasks();
+            } else {
+                console.error('Failed to load tasks:', data.error);
+                // Show error message to user
+                alert('Failed to load tasks from Google Sheets. Please check your connection.');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading tasks:', error);
+            alert('Error connecting to Google Sheets. Please try again.');
+        });
 }
 
-function getSampleTasks() {
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const nextWeek = new Date(today);
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    const lastWeek = new Date(today);
-    lastWeek.setDate(lastWeek.getDate() - 7);
-    
-    return [
-        {
-            id: 'T001',
-            title: 'Monthly Inventory Check',
-            description: 'Complete full inventory count for all items',
-            store: "SHAKEY'S NASUGBU",
-            assignedTo: 'Maria Santos',
-            dueDate: formatDate(nextWeek),
-            priority: 'high',
-            status: 'pending',
-            progress: 0,
-            remarks: '',
-            createdAt: formatDate(today),
-            createdBy: 'Leader'
-        },
-        {
-            id: 'T002',
-            title: 'Staff Training Session',
-            description: 'Train new staff on customer service protocols',
-            store: "SHAKEY'S MOONBAY",
-            assignedTo: 'John Reyes',
-            dueDate: formatDate(tomorrow),
-            priority: 'medium',
-            status: 'in-progress',
-            progress: 60,
-            remarks: '2 sessions completed, 1 remaining',
-            createdAt: formatDate(today),
-            createdBy: 'Leader'
-        },
-        {
-            id: 'T003',
-            title: 'Store Cleanup',
-            description: 'Deep cleaning of store premises',
-            store: 'PC JP RIZAL',
-            assignedTo: 'Anna Cruz',
-            dueDate: formatDate(lastWeek),
-            priority: 'low',
-            status: 'completed',
-            progress: 100,
-            remarks: 'All areas cleaned',
-            createdAt: formatDate(lastWeek),
-            createdBy: 'Leader'
-        },
-        {
-            id: 'T004',
-            title: 'POS System Update',
-            description: 'Install latest POS software updates',
-            store: 'GENERIKA TIPAS',
-            assignedTo: 'Mike Garcia',
-            dueDate: formatDate(tomorrow),
-            priority: 'high',
-            status: 'pending',
-            progress: 0,
-            remarks: '',
-            createdAt: formatDate(today),
-            createdBy: 'Leader'
-        },
-        {
-            id: 'T005',
-            title: 'Employee Schedule',
-            description: 'Create weekly schedule for all staff',
-            store: 'LABLIFE',
-            assignedTo: 'Sarah Tan',
-            dueDate: formatDate(tomorrow),
-            priority: 'medium',
-            status: 'in-progress',
-            progress: 75,
-            remarks: 'Schedule draft ready for review',
-            createdAt: formatDate(today),
-            createdBy: 'Leader'
-        }
-    ];
-}
-
+// In saveTaskToGoogleSheets() - REPLACE with:
 function saveTaskToGoogleSheets(taskData) {
-    // Replace with actual API call:
-    // return fetch(API_URL + '?action=addTask', {
-    //     method: 'POST',
-    //     headers: { 'Content-Type': 'application/json' },
-    //     body: JSON.stringify(taskData)
-    // }).then(res => res.json());
-    
-    // For demo, just add to local array
-    return new Promise((resolve) => {
-        const newTask = {
-            id: 'T' + String(tasks.length + 1).padStart(3, '0'),
-            ...taskData,
-            status: 'pending',
-            progress: 0,
-            createdAt: formatDate(new Date()),
-            createdBy: currentUser ? currentUser.name : 'Leader'
-        };
-        tasks.push(newTask);
-        addActivity('Task created: ' + newTask.title);
-        resolve(newTask);
-    });
+    return fetch(API_URL + '?action=addTask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(taskData)
+    }).then(res => res.json());
 }
 
+// ============================================
+// UPDATE TASK IN GOOGLE SHEETS
+// ============================================
 function updateTaskInGoogleSheets(taskId, updates) {
-    // Replace with actual API call
-    return new Promise((resolve) => {
+    // Add timestamp for the update
+    updates.updatedAt = formatDate(new Date());
+    
+    return fetch(API_URL + '?action=updateTask', {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            id: taskId,
+            updates: updates
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            // Update local array to stay in sync
+            const task = tasks.find(t => t.id === taskId);
+            if (task) {
+                Object.assign(task, updates);
+                addActivity('Task updated: ' + task.title);
+            }
+            return data;
+        } else {
+            throw new Error(data.error || 'Failed to update task');
+        }
+    })
+    .catch(error => {
+        console.error('Error updating task:', error);
+        // Fallback: update local array anyway
         const task = tasks.find(t => t.id === taskId);
         if (task) {
             Object.assign(task, updates);
-            task.updatedAt = formatDate(new Date());
-            addActivity('Task updated: ' + task.title);
-            resolve(task);
+            addActivity('Task updated locally: ' + task.title);
         }
-        resolve(null);
+        throw error;
     });
 }
 
+// ============================================
+// DELETE TASK FROM GOOGLE SHEETS
+// ============================================
 function deleteTaskFromGoogleSheets(taskId) {
-    // Replace with actual API call
-    return new Promise((resolve) => {
+    // Find the task first for logging
+    const task = tasks.find(t => t.id === taskId);
+    const taskTitle = task ? task.title : 'Unknown task';
+    
+    return fetch(API_URL + '?action=deleteTask', {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            id: taskId
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            // Remove from local array
+            const index = tasks.findIndex(t => t.id === taskId);
+            if (index !== -1) {
+                tasks.splice(index, 1);
+                addActivity('Task deleted: ' + taskTitle);
+            }
+            return data;
+        } else {
+            throw new Error(data.error || 'Failed to delete task');
+        }
+    })
+    .catch(error => {
+        console.error('Error deleting task:', error);
+        // Fallback: remove from local array anyway
         const index = tasks.findIndex(t => t.id === taskId);
         if (index !== -1) {
-            const task = tasks[index];
             tasks.splice(index, 1);
-            addActivity('Task deleted: ' + task.title);
-            resolve(true);
+            addActivity('Task deleted locally: ' + taskTitle);
         }
-        resolve(false);
+        throw error;
+    });
+}
+
+// ============================================
+// BULK UPDATE (Optional - for multiple tasks)
+// ============================================
+function bulkUpdateTasks(taskUpdates) {
+    // taskUpdates should be an array of {id: 'T001', updates: {...}}
+    return fetch(API_URL + '?action=bulkUpdate', {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            updates: taskUpdates
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Update local array for each task
+            taskUpdates.forEach(({id, updates}) => {
+                const task = tasks.find(t => t.id === id);
+                if (task) {
+                    Object.assign(task, updates);
+                }
+            });
+            addActivity('Bulk update completed for ' + taskUpdates.length + ' tasks');
+        }
+        return data;
+    })
+    .catch(error => {
+        console.error('Error in bulk update:', error);
+        throw error;
+    });
+}
+
+// ============================================
+// OPTIMISTIC UPDATE (Better UX)
+// ============================================
+function optimisticUpdateTask(taskId, updates) {
+    // Store original state for rollback
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return Promise.reject('Task not found');
+    
+    const originalState = { ...task };
+    
+    // Apply update immediately (optimistic)
+    Object.assign(task, updates);
+    renderTasks(); // Update UI immediately
+    updateDashboard();
+    
+    // Then try to sync with server
+    return fetch(API_URL + '?action=updateTask', {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            id: taskId,
+            updates: updates
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            // Rollback on failure
+            Object.assign(task, originalState);
+            renderTasks();
+            updateDashboard();
+            throw new Error(data.error || 'Update failed');
+        }
+        addActivity('Task updated: ' + task.title);
+        return data;
+    })
+    .catch(error => {
+        // Rollback on any error
+        Object.assign(task, originalState);
+        renderTasks();
+        updateDashboard();
+        console.error('Update failed, rolled back:', error);
+        alert('Failed to update task. Changes have been reverted.');
+        throw error;
     });
 }
 
