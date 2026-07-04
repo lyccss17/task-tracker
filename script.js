@@ -11,29 +11,15 @@ let chartInstances = {};
 const API_URL = 'https://script.google.com/macros/s/AKfycbxtSN_XmIaX1RP3h4psVDdhfeASInA7gE60GPLKNESNc84BibCdxAUnXdLRNFrqD4Ok/exec';
 
 
-
-// Store list
-const STORES = [
-    "SHAKEY'S NASUGBU",
-    "SHAKEY'S MOONBAY",
-    "SHAKEY'S RGT",
-    "PC JP RIZAL",
-    "PC BAGONG ILOG",
-    "PC G&C ARCADE",
-    "RB/PC DON ANTONIO",
-    "PC GREENHILLS",
-    "GENERIKA TIPAS",
-    "GENERIKA MAHOGANY",
-    "LABLIFE",
-    "EPMPC"
-];
+// Store list - will be loaded from Google Sheets
+let STORES = [];
 
 // ============================================
 // INITIALIZATION
 // ============================================
 document.addEventListener('DOMContentLoaded', function() {
+    loadStoresFromSheets();
     loadTasksFromGoogleSheets();
-    populateStoreDropdowns();
     renderNotes();
     setupFilters();
     updateGreeting();
@@ -50,45 +36,176 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // ============================================
-// GOOGLE SHEETS API FUNCTIONS
+// STORE MANAGEMENT
 // ============================================
-// In loadTasksFromGoogleSheets() - REPLACE the sample data with:
-function loadTasksFromGoogleSheets() {
-    fetch(API_URL + '?action=getTasks')
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                tasks = data.data;
-                updateDashboard();
-                renderTasks();
-            } else {
-                console.error('Failed to load tasks:', data.error);
-                // Show error message to user
-                alert('Failed to load tasks from Google Sheets. Please check your connection.');
+function loadStoresFromSheets() {
+    // First try to get stores from Google Sheets
+    fetch(API_URL + '?action=getStores')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok: ' + response.status);
             }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success && data.data && data.data.length > 0) {
+                STORES = data.data;
+                console.log('✅ Stores loaded from Google Sheets:', STORES);
+            } else {
+                // Fallback to default stores
+                STORES = [
+                    "SHAKEY'S NASUGBU",
+                    "SHAKEY'S MOONBAY",
+                    "SHAKEY'S RGT",
+                    "PC JP RIZAL",
+                    "PC BAGONG ILOG",
+                    "PC G&C ARCADE",
+                    "RB/PC DON ANTONIO",
+                    "PC GREENHILLS",
+                    "GENERIKA TIPAS",
+                    "GENERIKA MAHOGANY",
+                    "LABLIFE",
+                    "EPMPC"
+                ];
+                console.log('⚠️ Using default stores');
+            }
+            populateStoreDropdowns();
         })
         .catch(error => {
-            console.error('Error loading tasks:', error);
-            alert('Error connecting to Google Sheets. Please try again.');
+            console.error('Error loading stores:', error);
+            // Use default stores
+            STORES = [
+                "SHAKEY'S NASUGBU",
+                "SHAKEY'S MOONBAY",
+                "SHAKEY'S RGT",
+                "PC JP RIZAL",
+                "PC BAGONG ILOG",
+                "PC G&C ARCADE",
+                "RB/PC DON ANTONIO",
+                "PC GREENHILLS",
+                "GENERIKA TIPAS",
+                "GENERIKA MAHOGANY",
+                "LABLIFE",
+                "EPMPC"
+            ];
+            populateStoreDropdowns();
         });
 }
 
-// In saveTaskToGoogleSheets() - REPLACE with:
+// ============================================
+// GOOGLE SHEETS API FUNCTIONS
+// ============================================
+function loadTasksFromGoogleSheets() {
+    // Show loading state
+    document.getElementById('totalTasks').textContent = '...';
+    
+    console.log('🔍 Loading tasks from:', API_URL);
+    
+    fetch(API_URL + '?action=getTasks')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok: ' + response.status);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('📊 Tasks response:', data);
+            
+            if (data.success && data.data) {
+                tasks = data.data || [];
+                console.log('✅ Loaded ' + tasks.length + ' tasks from Google Sheets');
+                updateDashboard();
+                renderTasks();
+                addActivity('Tasks loaded from Google Sheets');
+            } else if (data.data && data.data.length === 0) {
+                // Empty sheet - use sample data or start fresh
+                tasks = [];
+                console.log('ℹ️ No tasks found in Google Sheets');
+                updateDashboard();
+                renderTasks();
+                // Optionally add sample tasks
+                // addSampleTasks();
+            } else {
+                throw new Error(data.error || 'Failed to load tasks');
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error loading tasks:', error);
+            // Show error message but don't break the app
+            tasks = [];
+            updateDashboard();
+            renderTasks();
+            
+            // Show user-friendly error
+            const errorMsg = document.getElementById('totalTasks');
+            if (errorMsg) {
+                errorMsg.textContent = '⚠️';
+                errorMsg.title = 'Could not connect to Google Sheets. Please check your connection.';
+            }
+            
+            // Don't show alert - just show in UI
+            console.log('ℹ️ Using fallback: empty task list');
+        });
+}
+
+// ============================================
+// SAVE TASK TO GOOGLE SHEETS
+// ============================================
 function saveTaskToGoogleSheets(taskData) {
     return fetch(API_URL + '?action=addTask', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+            'Content-Type': 'application/json',
+        },
         body: JSON.stringify(taskData)
-    }).then(res => res.json());
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok: ' + response.status);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            // Add to local array
+            const newTask = {
+                id: 'T' + String(tasks.length + 1).padStart(3, '0'),
+                ...taskData,
+                status: 'pending',
+                progress: 0,
+                createdAt: formatDate(new Date()),
+                createdBy: currentUser ? currentUser.name : 'Leader'
+            };
+            tasks.push(newTask);
+            addActivity('Task created: ' + newTask.title);
+            console.log('✅ Task saved to Google Sheets:', newTask);
+            return newTask;
+        } else {
+            throw new Error(data.error || 'Failed to save task');
+        }
+    })
+    .catch(error => {
+        console.error('❌ Error saving task:', error);
+        // Fallback: save locally
+        const newTask = {
+            id: 'T' + String(tasks.length + 1).padStart(3, '0'),
+            ...taskData,
+            status: 'pending',
+            progress: 0,
+            createdAt: formatDate(new Date()),
+            createdBy: currentUser ? currentUser.name : 'Leader'
+        };
+        tasks.push(newTask);
+        addActivity('Task created locally (offline): ' + newTask.title);
+        alert('⚠️ Task saved locally. Could not sync with Google Sheets.');
+        return newTask;
+    });
 }
 
 // ============================================
 // UPDATE TASK IN GOOGLE SHEETS
 // ============================================
 function updateTaskInGoogleSheets(taskId, updates) {
-    // Add timestamp for the update
-    updates.updatedAt = formatDate(new Date());
-    
     return fetch(API_URL + '?action=updateTask', {
         method: 'POST',
         headers: { 
@@ -101,30 +218,32 @@ function updateTaskInGoogleSheets(taskId, updates) {
     })
     .then(response => {
         if (!response.ok) {
-            throw new Error('Network response was not ok');
+            throw new Error('Network response was not ok: ' + response.status);
         }
         return response.json();
     })
     .then(data => {
         if (data.success) {
-            // Update local array to stay in sync
+            // Update local array
             const task = tasks.find(t => t.id === taskId);
             if (task) {
                 Object.assign(task, updates);
                 addActivity('Task updated: ' + task.title);
             }
+            console.log('✅ Task updated in Google Sheets:', taskId);
             return data;
         } else {
             throw new Error(data.error || 'Failed to update task');
         }
     })
     .catch(error => {
-        console.error('Error updating task:', error);
-        // Fallback: update local array anyway
+        console.error('❌ Error updating task:', error);
+        // Fallback: update locally
         const task = tasks.find(t => t.id === taskId);
         if (task) {
             Object.assign(task, updates);
-            addActivity('Task updated locally: ' + task.title);
+            addActivity('Task updated locally (offline): ' + task.title);
+            alert('⚠️ Task updated locally. Could not sync with Google Sheets.');
         }
         throw error;
     });
@@ -134,7 +253,6 @@ function updateTaskInGoogleSheets(taskId, updates) {
 // DELETE TASK FROM GOOGLE SHEETS
 // ============================================
 function deleteTaskFromGoogleSheets(taskId) {
-    // Find the task first for logging
     const task = tasks.find(t => t.id === taskId);
     const taskTitle = task ? task.title : 'Unknown task';
     
@@ -149,7 +267,7 @@ function deleteTaskFromGoogleSheets(taskId) {
     })
     .then(response => {
         if (!response.ok) {
-            throw new Error('Network response was not ok');
+            throw new Error('Network response was not ok: ' + response.status);
         }
         return response.json();
     })
@@ -161,105 +279,67 @@ function deleteTaskFromGoogleSheets(taskId) {
                 tasks.splice(index, 1);
                 addActivity('Task deleted: ' + taskTitle);
             }
+            console.log('✅ Task deleted from Google Sheets:', taskId);
             return data;
         } else {
             throw new Error(data.error || 'Failed to delete task');
         }
     })
     .catch(error => {
-        console.error('Error deleting task:', error);
-        // Fallback: remove from local array anyway
+        console.error('❌ Error deleting task:', error);
+        // Fallback: remove locally
         const index = tasks.findIndex(t => t.id === taskId);
         if (index !== -1) {
             tasks.splice(index, 1);
-            addActivity('Task deleted locally: ' + taskTitle);
+            addActivity('Task deleted locally (offline): ' + taskTitle);
+            alert('⚠️ Task deleted locally. Could not sync with Google Sheets.');
         }
         throw error;
     });
 }
 
 // ============================================
-// BULK UPDATE (Optional - for multiple tasks)
+// TEST CONNECTION FUNCTION
 // ============================================
-function bulkUpdateTasks(taskUpdates) {
-    // taskUpdates should be an array of {id: 'T001', updates: {...}}
-    return fetch(API_URL + '?action=bulkUpdate', {
-        method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            updates: taskUpdates
+function testConnection() {
+    console.log('🔍 Testing connection to:', API_URL);
+    
+    fetch(API_URL + '?action=testConnection')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('HTTP error! status: ' + response.status);
+            }
+            return response.json();
         })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Update local array for each task
-            taskUpdates.forEach(({id, updates}) => {
-                const task = tasks.find(t => t.id === id);
-                if (task) {
-                    Object.assign(task, updates);
-                }
-            });
-            addActivity('Bulk update completed for ' + taskUpdates.length + ' tasks');
-        }
-        return data;
-    })
-    .catch(error => {
-        console.error('Error in bulk update:', error);
-        throw error;
-    });
+        .then(data => {
+            console.log('✅ Connection test response:', data);
+            if (data.success) {
+                alert('✅ Successfully connected to Google Sheets!\n\n' + JSON.stringify(data, null, 2));
+            } else {
+                alert('❌ Connection failed: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('❌ Connection error:', error);
+            alert('❌ Could not connect to Google Sheets:\n\n' + error.message + 
+                  '\n\nPlease check:\n1. Your deployment URL is correct\n2. The web app is deployed\n3. You have internet access');
+        });
 }
 
-// ============================================
-// OPTIMISTIC UPDATE (Better UX)
-// ============================================
-function optimisticUpdateTask(taskId, updates) {
-    // Store original state for rollback
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return Promise.reject('Task not found');
-    
-    const originalState = { ...task };
-    
-    // Apply update immediately (optimistic)
-    Object.assign(task, updates);
-    renderTasks(); // Update UI immediately
-    updateDashboard();
-    
-    // Then try to sync with server
-    return fetch(API_URL + '?action=updateTask', {
-        method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            id: taskId,
-            updates: updates
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (!data.success) {
-            // Rollback on failure
-            Object.assign(task, originalState);
-            renderTasks();
-            updateDashboard();
-            throw new Error(data.error || 'Update failed');
-        }
-        addActivity('Task updated: ' + task.title);
-        return data;
-    })
-    .catch(error => {
-        // Rollback on any error
-        Object.assign(task, originalState);
-        renderTasks();
-        updateDashboard();
-        console.error('Update failed, rolled back:', error);
-        alert('Failed to update task. Changes have been reverted.');
-        throw error;
-    });
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // ============================================
 // DASHBOARD FUNCTIONS
