@@ -1,344 +1,217 @@
-// Global variables
-let tasks = [];
-let currentUser = null;
-let notes = JSON.parse(localStorage.getItem('notes')) || [];
-let chartInstances = {};
+// Code.gs - Google Apps Script
 
-// API URL (replace with your Google Apps Script URL)
-const API_URL = 'https://script.google.com/macros/s/AKfycbxJgCZSAHcAUgF5W4C36ewggEAtNQz2VsfHCbvpFlE/dev';
-
-// Initialize
-document.addEventListener('DOMContentLoaded', function() {
-  loadTasks();
-  loadStores();
-  renderNotes();
-  setupEventListeners();
-});
-
-// Load tasks from Google Sheets
-function loadTasks() {
-  // In production, fetch from Google Apps Script
-  // For demo, use sample data
-  tasks = getSampleTasks();
-  updateDashboard();
-  renderTasks();
+// ============================================
+// CONFIGURATION
+// ============================================
+const API_URL = 'https://script.google.com/macros/s/AKfycbxB4c0wcnV_FDmsgnrUEcn1ONgA4gzyKXJIdmsyZUY2JkvfW8c1fRQBx2y8u3qdGB0/exec';
+// ============================================
+// WEB APP ENTRY POINT
+// ============================================
+function doGet(e) {
+  return handleRequest(e);
 }
 
-// Get sample data for demo
-function getSampleTasks() {
-  return [
-    {
-      id: 'T001',
-      title: 'Inventory Check',
-      store: "SHAKEY'S NASUGBU",
-      dueDate: '2026-07-10',
-      priority: 'high',
-      status: 'pending',
-      progress: 0,
-      remarks: ''
-    },
-    {
-      id: 'T002',
-      title: 'Staff Training',
-      store: 'SHAKEY\'S MOONBAY',
-      dueDate: '2026-07-15',
-      priority: 'medium',
-      status: 'in-progress',
-      progress: 60,
-      remarks: '2 sessions completed'
-    },
-    // Add more sample tasks
-  ];
+function doPost(e) {
+  return handleRequest(e);
 }
 
-// Load stores into dropdown
-function loadStores() {
-  const stores = [
-    "SHAKEY'S NASUGBU",
-    "SHAKEY'S MOONBAY",
-    "SHAKEY'S RGT",
-    "PC JP RIZAL",
-    "PC BAGONG ILOG",
-    "PC G&C ARCADE",
-    "RB/PC DON ANTONIO",
-    "PC GREENHILLS",
-    "GENERIKA TIPAS",
-    "GENERIKA MAHOGANY",
-    "LABLIFE",
-    "EPMPC"
-  ];
-  
-  const selects = document.querySelectorAll('select#storeSelect, select#filterStore');
-  selects.forEach(select => {
-    stores.forEach(store => {
-      const option = document.createElement('option');
-      option.value = store;
-      option.textContent = store;
-      select.appendChild(option);
-    });
-  });
-}
-
-// Update dashboard with charts
-function updateDashboard() {
-  updateStats();
-  createCharts();
-}
-
-function updateStats() {
-  const total = tasks.length;
-  const pending = tasks.filter(t => t.status === 'pending').length;
-  const completed = tasks.filter(t => t.status === 'completed').length;
-  const overdue = tasks.filter(t => new Date(t.dueDate) < new Date() && t.status !== 'completed').length;
-  
-  document.getElementById('totalTasks').textContent = total;
-  document.getElementById('pendingTasks').textContent = pending;
-  document.getElementById('completedTasks').textContent = completed;
-  document.getElementById('overdueTasks').textContent = overdue;
-}
-
-function createCharts() {
-  // Destroy existing charts
-  Object.values(chartInstances).forEach(chart => chart.destroy());
-  
-  // Status Chart
-  const statusCtx = document.getElementById('statusChart').getContext('2d');
-  const statusCounts = {
-    pending: tasks.filter(t => t.status === 'pending').length,
-    'in-progress': tasks.filter(t => t.status === 'in-progress').length,
-    completed: tasks.filter(t => t.status === 'completed').length
-  };
-  
-  chartInstances.status = new Chart(statusCtx, {
-    type: 'doughnut',
-    data: {
-      labels: ['Pending', 'In Progress', 'Completed'],
-      datasets: [{
-        data: [statusCounts.pending, statusCounts['in-progress'], statusCounts.completed],
-        backgroundColor: ['#ffd700', '#4a90e2', '#2ecc71']
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { position: 'bottom' },
-        title: { display: true, text: 'Task Status Distribution' }
-      }
+function handleRequest(e) {
+  try {
+    const action = e.parameter.action || e.parameter.action;
+    const data = e.postData ? JSON.parse(e.postData.contents) : {};
+    
+    switch(action) {
+      case 'getTasks':
+        return getTasks();
+      case 'addTask':
+        return addTask(data);
+      case 'updateTask':
+        return updateTask(data);
+      case 'deleteTask':
+        return deleteTask(data);
+      case 'getStores':
+        return getStores();
+      case 'verifyLogin':
+        return verifyLogin(data);
+      default:
+        return { success: false, error: 'Invalid action' };
     }
+  } catch(error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+// ============================================
+// TASK CRUD OPERATIONS
+// ============================================
+function getTasks() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Tasks');
+  if (!sheet) return { success: false, error: 'Tasks sheet not found' };
+  
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const tasks = [];
+  
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const task = {};
+    headers.forEach((header, index) => {
+      task[header] = row[index];
+    });
+    tasks.push(task);
+  }
+  
+  return { success: true, data: tasks };
+}
+
+function addTask(taskData) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Tasks');
+  if (!sheet) return { success: false, error: 'Tasks sheet not found' };
+  
+  const headers = sheet.getDataRange().getValues()[0];
+  const newRow = headers.map(header => {
+    return taskData[header] || '';
   });
   
-  // Priority Chart
-  const priorityCtx = document.getElementById('priorityChart').getContext('2d');
-  const priorityCounts = {
-    high: tasks.filter(t => t.priority === 'high').length,
-    medium: tasks.filter(t => t.priority === 'medium').length,
-    low: tasks.filter(t => t.priority === 'low').length
-  };
+  sheet.appendRow(newRow);
+  return { success: true, message: 'Task added successfully' };
+}
+
+function updateTask(data) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Tasks');
+  if (!sheet) return { success: false, error: 'Tasks sheet not found' };
   
-  chartInstances.priority = new Chart(priorityCtx, {
-    type: 'bar',
-    data: {
-      labels: ['High', 'Medium', 'Low'],
-      datasets: [{
-        label: 'Tasks by Priority',
-        data: [priorityCounts.high, priorityCounts.medium, priorityCounts.low],
-        backgroundColor: ['#e74c3c', '#f39c12', '#27ae60']
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { display: false },
-        title: { display: true, text: 'Tasks by Priority' }
-      },
-      scales: {
-        y: { beginAtZero: true }
-      }
+  const taskId = data.id;
+  const updates = data.updates || {};
+  
+  const allData = sheet.getDataRange().getValues();
+  const headers = allData[0];
+  const idIndex = headers.indexOf('id');
+  
+  for (let i = 1; i < allData.length; i++) {
+    if (allData[i][idIndex] === taskId) {
+      // Update the row
+      headers.forEach((header, index) => {
+        if (updates[header] !== undefined) {
+          sheet.getRange(i + 1, index + 1).setValue(updates[header]);
+        }
+      });
+      return { success: true, message: 'Task updated successfully' };
     }
-  });
-}
-
-// Render tasks
-function renderTasks() {
-  const taskList = document.getElementById('taskList');
-  const filterStore = document.getElementById('filterStore')?.value || 'all';
-  const filterStatus = document.getElementById('filterStatus')?.value || 'all';
-  
-  let filteredTasks = tasks;
-  if (filterStore !== 'all') {
-    filteredTasks = filteredTasks.filter(t => t.store === filterStore);
-  }
-  if (filterStatus !== 'all') {
-    filteredTasks = filteredTasks.filter(t => t.status === filterStatus);
   }
   
-  // Separate pending and completed
-  const pendingTasks = filteredTasks.filter(t => t.status !== 'completed');
-  const completedTasks = filteredTasks.filter(t => t.status === 'completed');
-  
-  taskList.innerHTML = '';
-  
-  // Render pending tasks
-  if (pendingTasks.length > 0) {
-    const pendingSection = document.createElement('div');
-    pendingSection.innerHTML = '<h3>Pending Tasks</h3>';
-    pendingTasks.forEach(task => {
-      pendingSection.appendChild(createTaskCard(task));
-    });
-    taskList.appendChild(pendingSection);
-  }
-  
-  // Render completed tasks
-  if (completedTasks.length > 0) {
-    const completedSection = document.createElement('div');
-    completedSection.innerHTML = '<h3>Completed Tasks</h3>';
-    completedTasks.forEach(task => {
-      completedSection.appendChild(createTaskCard(task));
-    });
-    taskList.appendChild(completedSection);
-  }
+  return { success: false, error: 'Task not found' };
 }
 
-function createTaskCard(task) {
-  const div = document.createElement('div');
-  div.className = `task-item priority-${task.priority}`;
-  div.innerHTML = `
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-      <div>
-        <strong>${task.title}</strong>
-        <span style="margin-left:1rem; color:#666;">${task.store}</span>
-      </div>
-      <span class="status status-${task.status}">${task.status}</span>
-    </div>
-    <div style="margin-top:0.5rem;">
-      <span>Due: ${task.dueDate}</span>
-      <span style="margin-left:1rem;">Progress: ${task.progress}%</span>
-      <span style="margin-left:1rem;">Priority: ${task.priority}</span>
-    </div>
-    ${task.remarks ? `<div style="margin-top:0.5rem; color:#666;">${task.remarks}</div>` : ''}
-    <div style="margin-top:0.5rem;">
-      <button onclick="updateTaskStatus('${task.id}')">Update Status</button>
-      ${currentUser && currentUser.role === 'leader' ? `
-        <button onclick="editTask('${task.id}')">Edit</button>
-        <button onclick="deleteTask('${task.id}')">Delete</button>
-      ` : ''}
-    </div>
-  `;
-  return div;
-}
-
-// Task CRUD operations
-function addNewTask(taskData) {
-  // In production, send to Google Sheets
-  const newTask = {
-    id: 'T' + String(tasks.length + 1).padStart(3, '0'),
-    ...taskData,
-    createdAt: new Date().toISOString(),
-    status: 'pending',
-    progress: 0
-  };
-  tasks.push(newTask);
-  updateDashboard();
-  renderTasks();
-  alert('Task added successfully!');
-}
-
-function updateTaskStatus(taskId) {
-  const task = tasks.find(t => t.id === taskId);
-  if (!task) return;
+function deleteTask(data) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Tasks');
+  if (!sheet) return { success: false, error: 'Tasks sheet not found' };
   
-  const newStatus = prompt('Enter new status (pending, in-progress, completed):', task.status);
-  if (newStatus && ['pending', 'in-progress', 'completed'].includes(newStatus)) {
-    task.status = newStatus;
-    if (newStatus === 'completed') {
-      task.progress = 100;
+  const taskId = data.id;
+  const allData = sheet.getDataRange().getValues();
+  const headers = allData[0];
+  const idIndex = headers.indexOf('id');
+  
+  for (let i = allData.length - 1; i >= 1; i--) {
+    if (allData[i][idIndex] === taskId) {
+      sheet.deleteRow(i + 1);
+      return { success: true, message: 'Task deleted successfully' };
     }
-    const newProgress = prompt('Enter progress (0-100):', task.progress);
-    if (newProgress !== null) {
-      task.progress = parseInt(newProgress);
+  }
+  
+  return { success: false, error: 'Task not found' };
+}
+
+// ============================================
+// AUTHENTICATION
+// ============================================
+function verifyLogin(data) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Users');
+  if (!sheet) return { success: false, error: 'Users sheet not found' };
+  
+  const store = data.store;
+  const password = data.password;
+  const role = data.role || 'store';
+  
+  const allData = sheet.getDataRange().getValues();
+  
+  for (let i = 1; i < allData.length; i++) {
+    if (allData[i][0] === store && allData[i][1] === password && allData[i][2] === role) {
+      return { success: true, user: { store: store, role: role } };
     }
-    const remarks = prompt('Enter remarks:', task.remarks || '');
-    if (remarks !== null) {
-      task.remarks = remarks;
+  }
+  
+  return { success: false, error: 'Invalid credentials' };
+}
+
+// ============================================
+// STORE LIST
+// ============================================
+function getStores() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Users');
+  if (!sheet) return { success: false, error: 'Users sheet not found' };
+  
+  const data = sheet.getDataRange().getValues();
+  const stores = [];
+  
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0]) {
+      stores.push(data[i][0]);
     }
-    updateDashboard();
-    renderTasks();
-    alert('Task updated successfully!');
-  }
-}
-
-// Notes management
-function addNote() {
-  const input = document.getElementById('noteInput');
-  const text = input.value.trim();
-  if (text) {
-    notes.push({
-      id: Date.now(),
-      text: text,
-      date: new Date().toLocaleString()
-    });
-    localStorage.setItem('notes', JSON.stringify(notes));
-    renderNotes();
-    input.value = '';
-  }
-}
-
-function renderNotes() {
-  const notesList = document.getElementById('notesList');
-  notesList.innerHTML = notes.map(note => `
-    <div class="note-item">
-      <div>${note.text}</div>
-      <small style="color:#666; display:block; margin-top:0.5rem;">${note.date}</small>
-      <button onclick="deleteNote(${note.id})" style="margin-top:0.5rem;">Delete</button>
-    </div>
-  `).join('');
-}
-
-function deleteNote(id) {
-  notes = notes.filter(n => n.id !== id);
-  localStorage.setItem('notes', JSON.stringify(notes));
-  renderNotes();
-}
-
-// Login functionality
-function handleLogin() {
-  const store = document.getElementById('storeSelect').value;
-  const password = document.getElementById('passwordInput').value;
-  
-  if (!store || !password) {
-    alert('Please select store and enter password');
-    return;
   }
   
-  // In production, validate with Google Sheets
-  // For demo, use a simple check
-  if (store === "SHAKEY'S NASUGBU" && password === 'leader123') {
-    currentUser = { store, role: 'leader' };
-    alert('Login successful!');
-    showPage('tasks');
-    renderTasks();
-  } else {
-    alert('Invalid credentials');
-  }
+  return { success: true, data: stores };
 }
 
-// Navigation
-function showPage(pageId) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.getElementById(pageId).classList.add('active');
+// ============================================
+// UTILITY FUNCTIONS
+// ============================================
+function setupSheet() {
+  // Create Tasks sheet
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
   
-  if (pageId === 'dashboard') {
-    updateDashboard();
-  } else if (pageId === 'tasks') {
-    renderTasks();
-  } else if (pageId === 'notes') {
-    renderNotes();
+  // Tasks sheet
+  let taskSheet = ss.getSheetByName('Tasks');
+  if (!taskSheet) {
+    taskSheet = ss.insertSheet('Tasks');
+    const headers = [
+      'id', 'title', 'description', 'store', 'assignedTo', 
+      'dueDate', 'priority', 'status', 'progress', 'remarks',
+      'createdAt', 'createdBy'
+    ];
+    taskSheet.appendRow(headers);
   }
-}
-
-// Event listeners
-function setupEventListeners() {
-  document.querySelectorAll('#filterStore, #filterStatus').forEach(el => {
-    el?.addEventListener('change', renderTasks);
-  });
+  
+  // Users sheet
+  let userSheet = ss.getSheetByName('Users');
+  if (!userSheet) {
+    userSheet = ss.insertSheet('Users');
+    const headers = ['store', 'password', 'role', 'lastLogin'];
+    userSheet.appendRow(headers);
+    
+    // Add default users
+    const defaultUsers = [
+      ["SHAKEY'S NASUGBU", 'leader123', 'leader', ''],
+      ["SHAKEY'S MOONBAY", 'store123', 'store', ''],
+      ["SHAKEY'S RGT", 'store123', 'store', ''],
+      ["PC JP RIZAL", 'store123', 'store', ''],
+      ["PC BAGONG ILOG", 'store123', 'store', ''],
+      ["PC G&C ARCADE", 'store123', 'store', ''],
+      ["RB/PC DON ANTONIO", 'store123', 'store', ''],
+      ["PC GREENHILLS", 'store123', 'store', ''],
+      ["GENERIKA TIPAS", 'store123', 'store', ''],
+      ["GENERIKA MAHOGANY", 'store123', 'store', ''],
+      ["LABLIFE", 'store123', 'store', ''],
+      ["EPMPC", 'store123', 'store', '']
+    ];
+    defaultUsers.forEach(row => userSheet.appendRow(row));
+  }
+  
+  // Activity Log sheet
+  let logSheet = ss.getSheetByName('ActivityLog');
+  if (!logSheet) {
+    logSheet = ss.insertSheet('ActivityLog');
+    const headers = ['timestamp', 'user', 'action', 'details'];
+    logSheet.appendRow(headers);
+  }
 }
