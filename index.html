@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Task Tracker System</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav>
+    <div class="logo">Task Tracker</div>
+    <div class="nav-links">
+      <button onclick="showPage('dashboard')">Dashboard</button>
+      <button onclick="showPage('tasks')">Tasks</button>
+      <button onclick="showPage('notes')">Notes</button>
+      <button onclick="showPage('login')">Login</button>
+    </div>
+  </nav>
+
+  <!-- Dashboard Page -->
+  <div id="dashboard" class="page active">
+    <h2>Dashboard</h2>
+    <div class="stats-grid">
+      <div class="stat-card">Total Tasks: <span id="totalTasks">0</span></div>
+      <div class="stat-card">Pending: <span id="pendingTasks">0</span></div>
+      <div class="stat-card">Completed: <span id="completedTasks">0</span></div>
+      <div class="stat-card">Overdue: <span id="overdueTasks">0</span></div>
+    </div>
+    <div class="charts-container">
+      <canvas id="statusChart"></canvas>
+      <canvas id="priorityChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Tasks Page -->
+  <div id="tasks" class="page">
+    <h2>Task Management</h2>
+    <div id="taskFilters">
+      <select id="filterStore">
+        <option value="all">All Stores</option>
+        <!-- Stores will be populated -->
+      </select>
+      <select id="filterStatus">
+        <option value="all">All Status</option>
+        <option value="pending">Pending</option>
+        <option value="in-progress">In Progress</option>
+        <option value="completed">Completed</option>
+      </select>
+    </div>
+    <div id="taskList"></div>
+  </div>
+
+  <!-- Notes Page -->
+  <div id="notes" class="page">
+    <h2>Notes & Reminders</h2>
+    <div class="note-container">
+      <textarea id="noteInput" placeholder="Add a note..."></textarea>
+      <button onclick="addNote()">Add Note</button>
+    </div>
+    <div id="notesList"></div>
+  </div>
+
+  <!-- Login Page -->
+  <div id="login" class="page">
+    <h2>Team Leader Login</h2>
+    <div class="login-form">
+      <select id="storeSelect">
+        <option value="">Select Store</option>
+        <option value="SHAKEY'S NASUGBU">SHAKEY'S NASUGBU</option>
+        <option value="SHAKEY'S MOONBAY">SHAKEY'S MOONBAY</option>
+        <!-- Add all stores -->
+      </select>
+      <input type="password" id="passwordInput" placeholder="Enter password">
+      <button onclick="handleLogin()">Login</button>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
