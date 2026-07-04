@@ -8,7 +8,10 @@ let activityLog = JSON.parse(localStorage.getItem('activityLog')) || [];
 let chartInstances = {};
 
 // Google Sheets API URL - REPLACE WITH YOUR OWN
-const API_URL = 'https://script.google.com/macros/s/AKfycbxB4c0wcnV_FDmsgnrUEcn1ONgA4gzyKXJIdmsyZUY2JkvfW8c1fRQBx2y8u3qdGB0/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbxtSN_XmIaX1RP3h4psVDdhfeASInA7gE60GPLKNESNc84BibCdxAUnXdLRNFrqD4Ok/exec';
+
+
+
 // Store list
 const STORES = [
     "SHAKEY'S NASUGBU",
