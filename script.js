@@ -8,7 +8,7 @@ let activityLog = JSON.parse(localStorage.getItem('activityLog')) || [];
 let chartInstances = {};
 
 // Google Sheets API URL - REPLACE WITH YOUR OWN
-const API_URL = 'https://script.google.com/macros/s/AKfycbxtSN_XmIaX1RP3h4psVDdhfeASInA7gE60GPLKNESNc84BibCdxAUnXdLRNFrqD4Ok/exec';
+const API_URL = https://script.google.com/macros/s/AKfycbwGak1s1-VZc-dz1n7im-zO76qWodMsHKSMmoEiNaHVfa1jXVcYQgClUbGrL5Ifuw/exec';
 
 
 // Store list - will be loaded from Google Sheets
