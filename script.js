@@ -9,7 +9,6 @@ let chartInstances = {};
 
 // Google Sheets API URL - REPLACE WITH YOUR OWN
 const API_URL = 'https://script.google.com/macros/s/AKfycbxB4c0wcnV_FDmsgnrUEcn1ONgA4gzyKXJIdmsyZUY2JkvfW8c1fRQBx2y8u3qdGB0/exec';
-
 // Store list
 const STORES = [
     "SHAKEY'S NASUGBU",
